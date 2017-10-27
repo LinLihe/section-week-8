@@ -8,7 +8,7 @@ DEBUG = False
 def load_cache_json():
     # global CACHE_DICTION
     try:
-        cache_file = open(CACHE_FNAME, 'r', encoding = "utf-8")
+        cache_file = open(CACHE_FNAME, 'r')
         cache_contents = cache_file.read()
         CACHE_DICTION = json.loads(cache_contents)
         cache_file.close()
@@ -25,21 +25,19 @@ def params_unique_combination(baseurl, params_d, private_keys=["api_key"]):
             res.append("{}-{}".format(k, params_d[k]))
     return baseurl + "_".join(res)
 
-def search_flickr(tags, method = "flickr.photos.search", photo_id = None):
-
+def search_flickr(diction):
     if not FLICKR_API_KEY:
         raise Exception('Flickr API Key is missing!')
 
     baseurl = "https://api.flickr.com/services/rest/"
     params_diction = {
-        "method": method,
         "format": "json",
         "api_key": FLICKR_API_KEY,
-        "tags": tags,
-        "per_page": 10,
         "nojsoncallback": 1
     }
-
+    for key in diction:
+        params_diction[key] = diction[key]
+    
     unique_ident = params_unique_combination(baseurl,params_diction)
     if unique_ident in CACHE_DICTION:
         return CACHE_DICTION[unique_ident]
@@ -54,23 +52,32 @@ def search_flickr(tags, method = "flickr.photos.search", photo_id = None):
 
 class Photo:
     def __init__(self, photo_dict):
-        self.title = photo_dict['title']
+        self.title = photo_dict['title']['_content']
         self.id = photo_dict['id']
-        self.owner = photo_dict['owner']
+        self.owner = photo_dict['owner']['nsid']
+        self.owner_username = photo_dict['owner']['username']
 
     def __str__(self):
-        return '{0} by {1}'.format(self.title, self.owner)
+        return '{0} by {1}'.format(self.title, self.owner_username)
 
 
 CACHE_DICTION = load_cache_json()
 if DEBUG:
     print(CACHE_DICTION)
 
-results = search_flickr('sunset summer')
+diction = {"method": "flickr.photos.search",
+           "tags": "sunset summer",
+           "per_page": 10}
+results = search_flickr(diction)
 
 photos_list = []
 for r in results['photos']['photo']:
-    photos_list.append(Photo(r))
+    photo_id = r['id']
+    photo_result = search_flickr({
+            'method': 'flickr.photos.getInfo',
+            'photo_id': photo_id
+        })
+    photos_list.append(Photo(photo_result['photo']))
 
 print()
 print("= compare these outputs = >> ")
@@ -82,5 +89,3 @@ for photo in photos_list:
 
     # if you get encoding error, try this
     print(str(photo).encode('utf-8'))
-
-print()
